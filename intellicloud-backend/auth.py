@@ -3,25 +3,27 @@ from functools import wraps
 from flask import request, jsonify, g
 import firebase_admin
 from firebase_admin import credentials, auth as fb_auth
-from models.clients import get_client_by_api_key  
+from models.clients import get_client_by_api_key
 
 _firebase_inited = False
 
-def init_firebase_app():
-    """Initialize Firebase Admin once, using env-configurable creds."""
-    global _firebase_inited
-    if _firebase_inited:
+def init_firebase_app(app=None):
+    if os.getenv("DISABLE_FIREBASE") == "1":
+        if app: app.logger.warning("Firebase disabled (DISABLE_FIREBASE=1)")
         return
-    cred_path = os.getenv("FIREBASE_CREDENTIALS_JSON") or os.getenv("FIREBASE_CRED_PATH")
-    project_id = os.getenv("FIREBASE_PROJECT_ID")
-
-    if cred_path and os.path.exists(cred_path):
-        if not firebase_admin._apps:
-            opts = {"projectId": project_id} if project_id else None
-            cred = credentials.Certificate(cred_path)
-            firebase_admin.initialize_app(cred, opts)
-    
-    _firebase_inited = True
+    if firebase_admin._apps:
+        return
+    path = os.getenv("FIREBASE_CREDENTIALS_JSON")
+    try:
+        if path and os.path.exists(path):
+            cred = credentials.Certificate(path)
+        else:
+            cred = credentials.ApplicationDefault()
+        firebase_admin.initialize_app(cred)
+        if app: app.logger.info("Firebase initialized")
+    except Exception as e:
+        if app: app.logger.error(f"Firebase init failed: {e}")
+        raise
 
 def _decode_bearer():
     """Return decoded Firebase token dict or None."""
@@ -37,19 +39,24 @@ def _decode_bearer():
         print("Firebase token verification failed:", e)
         return None
 
-def require_auth(fn):
+def require_auth(f):
     """Require a valid Firebase bearer token. Attaches request.user."""
-    @wraps(fn)
+    @wraps(f)
     def wrapper(*args, **kwargs):
-        decoded = _decode_bearer()
-        if not decoded:
+        auth_header = request.headers.get("Authorization", "")
+        parts = auth_header.split()
+        if len(parts) == 2 and parts[0].lower() == "bearer":
+            token = parts[1]
+        else:
             return jsonify({"error": "unauthorized"}), 401
-        request.user = {
-            "uid": decoded.get("uid"),
-            "email": decoded.get("email"),
-            "role": decoded.get("role", "user"),
-        }
-        return fn(*args, **kwargs)
+        
+        try:
+            decoded = fb_auth.verify_id_token(token)
+            request.user = decoded
+        except Exception:
+            return jsonify({"error": "unauthorized"}), 401
+        
+        return f(*args, **kwargs)
     return wrapper
 
 def require_role(required: str):

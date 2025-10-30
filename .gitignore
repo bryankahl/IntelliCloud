@@ -1,14 +1,16 @@
-venv/
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-node_modules/
-dist/
-build/
-*.log
+# env & config
+venv
 .env
 .env.*
-.DS_Store
-Thumbs.db
+!.env.example
+*.secret
+*.key
+*.pem
+*.pfx
+*.keystore
+firebase*.json
 serviceAccountKey.json
+
+# app caches
+__pycache__/
+node_modules/
