@@ -1,29 +1,52 @@
-version: "3.9"
-
 services:
   backend:
     build:
       context: ./intellicloud-backend
       dockerfile: Dockerfile
+    command: >
+      gunicorn app:app
+      --bind 0.0.0.0:5000
+      --worker-class gthread
+      --workers 1
+      --threads 8
+      --keep-alive 75
+      --timeout 0
     ports:
       - "5000:5000"
     env_file:
       - .env
     volumes:
       - ./intellicloud-backend/secrets/firebase_sa.json:/run/secrets/firebase_sa.json:ro
-    secrets:
-      - source: firebase_sa
-        target: firebase_sa.json
+      - ./intellicloud-backend/secrets/flask_secret_key.txt:/run/secrets/flask_secret_key.txt:ro
+      - ./intellicloud-backend/data:/data:ro
     environment:
       FIREBASE_CREDENTIALS_JSON: /run/secrets/firebase_sa.json
+      FLASK_SECRET_KEY_FILE: /run/secrets/flask_secret_key.txt
+      GEOIP_CITY_DB: /data/GeoLite2-City.mmdb
+      GEOIP_ASN_DB: /data/GeoLite2-ASN.mmdb
     depends_on:
       - redis
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:5000/api/health || curl -fsS http://localhost:5000/api/health || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+
+  web:
+    build: 
+      context: ./intellicloud-frontend
+      args:
+        VITE_INGEST_KEY: ${VITE_INGEST_KEY}
+    depends_on:
+      - backend
+    ports:
+      - "8080:80"
+    restart: unless-stopped
 
   redis:
     image: redis:7-alpine
     ports:
       - "6379:6379"
-
-secrets:
-  firebase_sa:
-    file: ./intellicloud-backend/secrets/firebase_sa.json
+    restart: unless-stopped
