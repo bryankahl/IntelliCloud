@@ -11,7 +11,6 @@ import {
 } from 'firebase/auth';
 
 // 1. Initialize Real Firebase
-// Note: If your .env keys are missing, this will throw an error in the console.
 const app = initializeApp({
   apiKey: firebaseEnv.apiKey,
   authDomain: firebaseEnv.authDomain,
@@ -21,7 +20,7 @@ const app = initializeApp({
 
 const auth = getAuth(app);
 
-// 2. Real Registration (With Name Saving)
+// 2. Real Registration (With Name Saving & Reload)
 const register = async (email, password, first, last, dob) => {
   // Create account on Firebase
   const userCredential = await createUserWithEmailAndPassword(auth, email, password);
@@ -32,7 +31,10 @@ const register = async (email, password, first, last, dob) => {
     const fullName = `${first} ${last}`;
     await updateProfile(user, { displayName: fullName });
     
-    // Force local update so the UI sees the name instantly
+    // CRITICAL FIX: Reload user to ensure the Auth listener sees the new name
+    await user.reload();
+    
+    // Force local update on the object reference just in case
     user.displayName = fullName;
   }
   

@@ -49,8 +49,9 @@ export default function Home({ user }) {
         {/* 1. HERO SECTION */}
         <div style={{ textAlign: 'center', marginBottom: 100, marginTop: 60 }}>
           <ScrollReveal delay={100}>
+            {/* UPDATED GREETING */}
             <h1 className="h1" style={{ fontSize: 64, marginBottom: 24, lineHeight: 1.1 }}>
-              Welcome back, <span className="text-alive">{firstName}</span>.
+              Welcome, <span className="text-alive">{firstName}</span>.
             </h1>
           </ScrollReveal>
           <ScrollReveal delay={200}>
@@ -63,12 +64,7 @@ export default function Home({ user }) {
         {/* 2. THE PROBLEM VS SOLUTION (Updated Layout) */}
         <ScrollReveal delay={300}>
           <div style={{ marginBottom: 100 }}>
-            {/* UPDATED GRID: 
-                - Uses `repeat(auto-fit, minmax(400px, 1fr))` 
-                - This forces them side-by-side on screens >850px
-                - Stacks them only on mobile
-                - Equal width (1fr 1fr)
-            */}
+            {/* UPDATED GRID */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: 40, alignItems: 'stretch' }}>
               
               {/* The Old Way */}
@@ -152,7 +148,7 @@ export default function Home({ user }) {
                     position: 'absolute', bottom: -60, left: 32, display: 'grid', placeItems: 'center', fontSize: 50,
                     boxShadow: '0 10px 20px rgba(0,0,0,0.2)'
                   }}>
-                    🔐
+                    👨🏻‍💻
                   </div>
                 </div>
                 <div style={{ padding: '70px 32px 32px' }}>
@@ -177,7 +173,7 @@ export default function Home({ user }) {
                     position: 'absolute', bottom: -60, left: 32, display: 'grid', placeItems: 'center', fontSize: 50,
                     boxShadow: '0 10px 20px rgba(0,0,0,0.2)'
                   }}>
-                    👨‍💻
+                    👨🏼‍💻
                   </div>
                 </div>
                 <div style={{ padding: '70px 32px 32px' }}>
