@@ -35,7 +35,7 @@ const BackgroundWatermark = () => (
   }} />
 );
 
-// --- NEW: Boot Sequence Animation ---
+// --- Boot Sequence Animation ---
 function BootSequence({ onComplete }) {
   const [step, setStep] = useState(0);
 
@@ -114,7 +114,7 @@ function Landing({ onShowLogin, onShowRegister }) {
   );
 }
 
-// --- Auth Component (UPDATED with Boot Sequence) ---
+// --- Auth Component (UPDATED with Boot Sequence & Clean Errors) ---
 function InlineAuth({ mode, onAuthed, onBack, onSwitchMode }) {
   const [email, setEmail] = useState('');
   const [pw, setPw] = useState('');
@@ -124,7 +124,7 @@ function InlineAuth({ mode, onAuthed, onBack, onSwitchMode }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   
-  // NEW: State for the Boot Sequence
+  // State for the Boot Sequence
   const [booting, setBooting] = useState(false);
   const [authenticatedUser, setAuthenticatedUser] = useState(null);
 
@@ -144,7 +144,26 @@ function InlineAuth({ mode, onAuthed, onBack, onSwitchMode }) {
       setAuthenticatedUser(user);
       setBooting(true);
     } catch (err) { 
-      setError(err?.message || String(err)); 
+      // === CUSTOM ERROR HANDLING ===
+      let msg = "An unexpected error occurred.";
+      const code = err.code;
+
+      if (code === 'auth/email-already-in-use') {
+        msg = "That email is already in use. Please log in.";
+      } else if (code === 'auth/invalid-credential' || code === 'auth/wrong-password' || code === 'auth/user-not-found') {
+        msg = "Incorrect email or password.";
+      } else if (code === 'auth/weak-password') {
+        msg = "Password must be at least 6 characters.";
+      } else if (code === 'auth/invalid-email') {
+        msg = "Please enter a valid email address.";
+      } else if (code === 'auth/too-many-requests') {
+        msg = "Too many attempts. Please try again later.";
+      } else {
+        // Fallback: Clean up the raw message (e.g. remove "Firebase: Error (...)")
+        msg = err.message ? err.message.replace('Firebase: ', '').replace('Error (', '').replace(').', '') : String(err);
+      }
+
+      setError(msg); 
       setBusy(false);
     }
   };

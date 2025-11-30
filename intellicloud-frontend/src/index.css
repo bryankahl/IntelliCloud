@@ -324,8 +324,6 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   animation: flowGradient 6s linear infinite;
 }
 
-/* src/index.css - Add at the very bottom */
-
 /* === Auth Link Glow === */
 .auth-link {
   color: var(--brand);
@@ -335,12 +333,16 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   transition: all 0.3s ease;
   padding: 2px 6px;
   border-radius: 6px;
+  /* Moved display here to prevent layout shift ("twitch") on hover */
+  display: inline-block; 
 }
 
 .auth-link:hover {
   color: #fff;
-  background: rgba(var(--brand-rgb, 62, 123, 255), 0.2); /* Subtle background */
-  text-shadow: 0 0 12px var(--brand); /* Text Glow */
-  transform: translateY(-1px);
-  display: inline-block;
+  background: rgba(var(--brand-rgb, 62, 123, 255), 0.2); 
+  text-shadow: 0 0 12px var(--brand); /* Stronger Text Glow */
+  box-shadow: 0 0 15px rgba(var(--brand-rgb, 62, 123, 255), 0.3); /* Added subtle outer glow */
+  
+  /* Removed: transform: translateY(-1px); */
+  /* Removed: display: inline-block; (now in base class) */
 }
