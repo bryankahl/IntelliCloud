@@ -101,7 +101,6 @@ function AIAgentPanel({ selectedData, onClose }) {
       <div className={`ai-panel ${selectedData ? 'open' : ''}`}>
         <div style={{ padding: 24, borderBottom: '1px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'center', background: 'var(--panel-2)' }}>
           <div style={{ display:'flex', alignItems:'center', gap:12 }}>
-            <div style={{ fontSize:24, filter: 'drop-shadow(0 0 10px var(--brand))' }}>🤖</div>
             <div>
               <h3 style={{ margin:0, fontSize:16, fontWeight: 700 }}>IntelliCloud Agent</h3>
               <div style={{ fontSize:11, color:'var(--brand)', textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700 }}>
