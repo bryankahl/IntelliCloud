@@ -11,7 +11,8 @@ const RefreshIcon = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="
 const SparklesIcon = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2L9.91 8.26 3.65 10.35 9.91 12.44 12 18.7 14.09 12.44 20.35 10.35 14.09 8.26 12 2z"/></svg>;
 
 // --- Helpers ---
-const levels = ['All', 'Critical', 'High', 'Medium', 'Low'];
+const levels = ['All', 'Critical', 'High', 'Medium', 'Low', 'Info'];
+const protocols = ['All', 'System', 'TCP', 'UDP', 'HTTP', 'HTTPS', 'SSH'];
 
 const levelBadge = (lvl) => {
     const key = (lvl || '').toLowerCase();
@@ -19,7 +20,7 @@ const levelBadge = (lvl) => {
     if (key === 'high') return 'badge high';
     if (key === 'medium') return 'badge med';
     if (key === 'low') return 'badge low';
-    return 'badge ok';
+    return 'badge ok'; // Default for Info/System
 };
 
 const api = (p) => `${API_BASE_URL.replace(/\/+$/, '')}${p.startsWith('/') ? '' : '/'}${p}`;
@@ -56,15 +57,13 @@ function AIAgentPanel({ selectedData, onClose }) {
     const [loading, setLoading] = useState(false);
     const scrollRef = useRef(null);
   
-    // Auto-scroll to bottom of chat
     useEffect(() => {
       if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }, [messages, loading]);
   
-    // Initial Analysis Trigger
     useEffect(() => {
       if (selectedData) {
-        setMessages([]); // Clear previous chat
+        setMessages([]); 
         handleSend("Analyze this threat signature.", selectedData, []); 
       }
     }, [selectedData]);
@@ -72,7 +71,6 @@ function AIAgentPanel({ selectedData, onClose }) {
     const handleSend = async (text, contextOverride = null, historyOverride = null) => {
       if (!text.trim()) return;
   
-      // 1. Add User Message locally
       const currentHistory = historyOverride || messages;
       const newHistory = [...currentHistory, { role: 'user', content: text }];
       setMessages(newHistory);
@@ -80,20 +78,17 @@ function AIAgentPanel({ selectedData, onClose }) {
       setLoading(true);
   
       try {
-        // 2. Call Backend
         const res = await fetch(api('/chat'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            context: contextOverride || selectedData, // Send the row data as context
+            context: contextOverride || selectedData, 
             messages: newHistory
           })
         });
         const data = await res.json();
   
         if (data.error) throw new Error(data.detail || 'API Error');
-  
-        // 3. Add AI Response locally
         setMessages(prev => [...prev, { role: 'model', content: data.response }]);
       } catch (err) {
         setMessages(prev => [...prev, { role: 'model', content: "⚠️ Connection lost. Unable to reach neural core." }]);
@@ -104,7 +99,6 @@ function AIAgentPanel({ selectedData, onClose }) {
   
     return (
       <div className={`ai-panel ${selectedData ? 'open' : ''}`}>
-        {/* Header */}
         <div style={{ padding: 24, borderBottom: '1px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'center', background: 'var(--panel-2)' }}>
           <div style={{ display:'flex', alignItems:'center', gap:12 }}>
             <div style={{ fontSize:24, filter: 'drop-shadow(0 0 10px var(--brand))' }}>🤖</div>
@@ -118,7 +112,6 @@ function AIAgentPanel({ selectedData, onClose }) {
           <button className="btn icon-only" onClick={onClose} style={{background:'transparent', border:'none'}}>✕</button>
         </div>
         
-        {/* Chat Content */}
         <div className="ai-content" ref={scrollRef} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {messages.map((msg, i) => (
             <div key={i} className="ai-message animate-fade" style={{ 
@@ -147,7 +140,6 @@ function AIAgentPanel({ selectedData, onClose }) {
           )}
         </div>
         
-        {/* Input Area */}
         <div style={{ padding: 16, borderTop: '1px solid var(--border)', background: 'var(--panel-2)' }}>
           <form onSubmit={(e) => { e.preventDefault(); handleSend(input); }}>
               <input 
@@ -202,6 +194,8 @@ function useTrafficSSE() {
 
 function useAuditSSE() {
     const [audits, setAudits] = useState([]);
+    const clear = useCallback(() => setAudits([]), []);
+
     useEffect(() => {
         let closed = false;
         (async () => {
@@ -215,7 +209,7 @@ function useAuditSSE() {
         es.onmessage = (e) => { try { if (!closed) setAudits(prev => [JSON.parse(e.data), ...prev].slice(0, 200)); } catch {} };
         return () => { closed = true; try { es.close(); } catch {} };
     }, []);
-    return { audits };
+    return { audits, clear };
 }
 
 // --- Geo Components ---
@@ -239,17 +233,21 @@ function GeoTag({ cc, city, org }) {
 // --- MAIN DASHBOARD ---
 export default function Dashboard() {
     const { raw: threats } = useThreats();
-    const { audits } = useAuditSSE();
+    const { audits, clear: clearAudits } = useAuditSSE();
     const { events: sseEvents, clear: clearFeed } = useTrafficSSE();
     const [selectedForAI, setSelectedForAI] = useState(null);
 
-    // Filters
+    // Main Filters
     const [ipFilter, setIpFilter] = useState('');
     const [levelFilter, setLevelFilter] = useState('All');
     const [sinceTs, setSinceTs] = useState(0);
     const [limit, setLimit] = useState(200);
 
-    // Persist
+    // Audit Filters
+    const [auditLevel, setAuditLevel] = useState('All');
+    const [auditProto, setAuditProto] = useState('All');
+
+    // Persist Main Filters
     useEffect(() => {
         const s = JSON.parse(localStorage.getItem('ic-filters') || '{}');
         if (typeof s.ipFilter === 'string') setIpFilter(s.ipFilter);
@@ -261,7 +259,7 @@ export default function Dashboard() {
         localStorage.setItem('ic-filters', JSON.stringify({ ipFilter, levelFilter, limit }));
     }, [ipFilter, levelFilter, limit]);
 
-    // Data Processing
+    // Data Processing: Traffic
     const combined = useMemo(() => {
         const ipq  = ipFilter.trim();
         const lvlq = levelFilter || 'All';
@@ -292,6 +290,15 @@ export default function Dashboard() {
         return rows;
     }, [threats, sseEvents, ipFilter, levelFilter, sinceTs, limit]);
 
+    // Data Processing: Audits
+    const filteredAudits = useMemo(() => {
+        return audits.filter(a => {
+            if (auditLevel !== 'All' && (a.level || 'Info') !== auditLevel) return false;
+            if (auditProto !== 'All' && (a.proto || 'System') !== auditProto) return false;
+            return true;
+        });
+    }, [audits, auditLevel, auditProto]);
+
     // Export
     const downloadCSV = () => {
         const headers = ["time","type","src","dst","proto","sport","dport","level","flow","status"];
@@ -314,11 +321,11 @@ export default function Dashboard() {
         {/* AI SLIDEOUT */}
         <AIAgentPanel selectedData={selectedForAI} onClose={() => setSelectedForAI(null)} />
 
-        {/* --- CONTROL BAR --- */}
+        {/* --- MAIN CONTROL BAR --- */}
         <div className="card animate-slide" style={{ marginBottom: 20, padding: 12, display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'center', justifyContent: 'space-between' }}>
             
             {/* Left: Filters */}
-            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
                 <div style={{ position: 'relative' }}>
                     <div style={{ position:'absolute', left:10, top:10, color:'var(--muted)' }}><FilterIcon /></div>
                     <input className="input" placeholder="Filter IP Address..." 
@@ -327,17 +334,22 @@ export default function Dashboard() {
                     />
                 </div>
 
-                <select className="select" style={{ width: 140 }} value={levelFilter} onChange={e=>setLevelFilter(e.target.value)}>
-                    {levels.map(l => <option key={l} value={l}>{l}</option>)}
-                </select>
+                <div style={{ display:'flex', alignItems:'center', gap: 8 }}>
+                    <span style={{fontSize: 12, fontWeight: 700, color: 'var(--muted)', letterSpacing: 0.5}}>SEVERITY:</span>
+                    <select className="select" style={{ width: 140 }} value={levelFilter} onChange={e=>setLevelFilter(e.target.value)}>
+                        {levels.filter(l => l !== 'Info').map(l => <option key={l} value={l}>{l}</option>)}
+                    </select>
+                </div>
 
-                {/* UPDATED: Increased Width from 100 to 140px */}
-                <select className="select" style={{ width: 140 }} value={String(limit)} onChange={e => setLimit(Number(e.target.value))}>
-                    <option value="50">50 Rows</option>
-                    <option value="100">100 Rows</option>
-                    <option value="200">200 Rows</option>
-                    <option value="0">All Rows</option>
-                </select>
+                <div style={{ display:'flex', alignItems:'center', gap: 8 }}>
+                    <span style={{fontSize: 12, fontWeight: 700, color: 'var(--muted)', letterSpacing: 0.5}}>ROWS:</span>
+                    <select className="select" style={{ width: 140 }} value={String(limit)} onChange={e => setLimit(Number(e.target.value))}>
+                        <option value="50">50 Rows</option>
+                        <option value="100">100 Rows</option>
+                        <option value="200">200 Rows</option>
+                        <option value="0">All Rows</option>
+                    </select>
+                </div>
                 
                 {/* Reset Button */}
                 {(ipFilter || levelFilter !== 'All') && (
@@ -431,21 +443,44 @@ export default function Dashboard() {
                         <div style={{ width: 8, height: 8, background: 'var(--brand)', borderRadius: '50%' }} />
                         <h3 style={{ margin: 0, fontSize: 16 }}>System Audit Log</h3>
                     </div>
+                    {/* Audit Header Controls (Clear Button) */}
+                     <button className="btn icon-only" onClick={clearAudits} title="Clear audit log" style={{width: 28, height: 28}}>
+                        <TrashIcon />
+                     </button>
                 </div>
+
+                {/* Audit Toolbar */}
+                <div style={{ padding: '8px 16px', borderBottom: '1px solid var(--border)', background: 'var(--panel)', display: 'flex', gap: 12, alignItems: 'center' }}>
+                     <div style={{ display:'flex', alignItems:'center', gap: 6 }}>
+                        <span style={{fontSize: 10, fontWeight: 700, color: 'var(--muted)'}}>SEVERITY:</span>
+                        <select className="select" style={{ fontSize: 12, padding: '4px 8px', height: 28, width: 100 }} value={auditLevel} onChange={e => setAuditLevel(e.target.value)}>
+                            {levels.map(l => <option key={l} value={l}>{l}</option>)}
+                        </select>
+                    </div>
+                    <div style={{ display:'flex', alignItems:'center', gap: 6 }}>
+                        <span style={{fontSize: 10, fontWeight: 700, color: 'var(--muted)'}}>PROTOCOL:</span>
+                        <select className="select" style={{ fontSize: 12, padding: '4px 8px', height: 28, width: 100 }} value={auditProto} onChange={e => setAuditProto(e.target.value)}>
+                            {protocols.map(p => <option key={p} value={p}>{p}</option>)}
+                        </select>
+                    </div>
+                </div>
+
                 <div style={{ overflow: 'auto', flex: 1 }}>
                     <table className="table">
-                        <thead><tr><th>Actor</th><th>Action</th><th>Target</th><th>Time</th></tr></thead>
+                        <thead><tr><th>Severity</th><th>Actor</th><th>Action</th><th>Target</th><th>Proto</th><th>Time</th></tr></thead>
                         <tbody>
-                        {audits.map((a, i) => (
+                        {filteredAudits.map((a, i) => (
                             <tr key={i}>
+                                <td><span className={levelBadge(a.level || 'Info')}>{a.level || 'Info'}</span></td>
                                 <td style={{ fontWeight: 600 }}>{a.actor}</td>
                                 <td><span style={{ color: 'var(--brand)', fontWeight: 600 }}>{a.action}</span></td>
                                 <td className="mono" style={{ fontSize: 13 }}>{a.target}</td>
+                                <td className="mono" style={{ fontSize: 13, color: 'var(--muted)' }}>{a.proto || 'System'}</td>
                                 <td className="mono" style={{ fontSize: 13, color: 'var(--muted)' }}>{new Date((a.at || 0) * 1000).toLocaleTimeString()}</td>
                             </tr>
                         ))}
-                        {audits.length === 0 && (
-                            <tr><td colSpan="4" style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>No audit activity recorded.</td></tr>
+                        {filteredAudits.length === 0 && (
+                            <tr><td colSpan="6" style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>No audit activity recorded.</td></tr>
                         )}
                         </tbody>
                     </table>
