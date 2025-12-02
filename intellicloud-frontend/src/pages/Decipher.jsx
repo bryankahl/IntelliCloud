@@ -177,7 +177,7 @@ export default function Decipher() {
         {/* SIDEBAR */}
         <div className="card animate-slide" style={{ padding: 0, overflow: 'hidden', height: 'fit-content' }}>
           <div style={{ padding: 20, background: 'var(--panel-2)', borderBottom: '1px solid var(--border)' }}>
-            <h3 style={{ margin: 0, fontSize: 16 }}>Cyber Toolkit</h3>
+            <h3 style={{ margin: 0, fontSize: 16 }}>Ciphers</h3>
           </div>
           <div style={{ padding: 12 }}>
             {Object.keys(ciphers).map(key => (

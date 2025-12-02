@@ -49,65 +49,119 @@ const generateAIAnalysis = (data) => {
   });
 };
 
-// --- AI Panel Component ---
+// --- AI Panel Component (Real Gemini Integration) ---
 function AIAgentPanel({ selectedData, onClose }) {
-  const [loading, setLoading] = useState(false);
-  const [response, setResponse] = useState('');
-
-  useEffect(() => {
-    if (selectedData) {
+    const [messages, setMessages] = useState([]);
+    const [input, setInput] = useState('');
+    const [loading, setLoading] = useState(false);
+    const scrollRef = useRef(null);
+  
+    // Auto-scroll to bottom of chat
+    useEffect(() => {
+      if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }, [messages, loading]);
+  
+    // Initial Analysis Trigger
+    useEffect(() => {
+      if (selectedData) {
+        setMessages([]); // Clear previous chat
+        handleSend("Analyze this threat signature.", selectedData, []); 
+      }
+    }, [selectedData]);
+  
+    const handleSend = async (text, contextOverride = null, historyOverride = null) => {
+      if (!text.trim()) return;
+  
+      // 1. Add User Message locally
+      const currentHistory = historyOverride || messages;
+      const newHistory = [...currentHistory, { role: 'user', content: text }];
+      setMessages(newHistory);
+      setInput('');
       setLoading(true);
-      setResponse('');
-      generateAIAnalysis(selectedData).then(text => {
-        setResponse(text);
+  
+      try {
+        // 2. Call Backend
+        const res = await fetch(api('/chat'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            context: contextOverride || selectedData, // Send the row data as context
+            messages: newHistory
+          })
+        });
+        const data = await res.json();
+  
+        if (data.error) throw new Error(data.detail || 'API Error');
+  
+        // 3. Add AI Response locally
+        setMessages(prev => [...prev, { role: 'model', content: data.response }]);
+      } catch (err) {
+        setMessages(prev => [...prev, { role: 'model', content: "⚠️ Connection lost. Unable to reach neural core." }]);
+      } finally {
         setLoading(false);
-      });
-    }
-  }, [selectedData]);
-
-  return (
-    <div className={`ai-panel ${selectedData ? 'open' : ''}`}>
-      <div style={{ padding: 24, borderBottom: '1px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'center', background: 'var(--panel-2)' }}>
-        <div style={{ display:'flex', alignItems:'center', gap:12 }}>
-          <div style={{ fontSize:24, filter: 'drop-shadow(0 0 10px var(--brand))' }}>🤖</div>
-          <div>
-            <h3 style={{ margin:0, fontSize:16, fontWeight: 700 }}>IntelliCloud Agent</h3>
-            <div style={{ fontSize:11, color:'var(--brand)', textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700 }}>AI Analysis Active</div>
+      }
+    };
+  
+    return (
+      <div className={`ai-panel ${selectedData ? 'open' : ''}`}>
+        {/* Header */}
+        <div style={{ padding: 24, borderBottom: '1px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'center', background: 'var(--panel-2)' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+            <div style={{ fontSize:24, filter: 'drop-shadow(0 0 10px var(--brand))' }}>🤖</div>
+            <div>
+              <h3 style={{ margin:0, fontSize:16, fontWeight: 700 }}>IntelliCloud Agent</h3>
+              <div style={{ fontSize:11, color:'var(--brand)', textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700 }}>
+                 {selectedData ? `Target: ${selectedData.src}` : 'Standby'}
+              </div>
+            </div>
           </div>
+          <button className="btn icon-only" onClick={onClose} style={{background:'transparent', border:'none'}}>✕</button>
         </div>
-        <button className="btn icon-only" onClick={onClose} style={{background:'transparent', border:'none'}}>✕</button>
-      </div>
-      
-      <div className="ai-content">
-        {!selectedData ? null : (
-            <>
-            <div className="p-muted" style={{ fontSize:13, marginBottom:20, fontFamily: 'monospace' }}>
-                TARGET_ID: {selectedData.id.substring(0,12)}...
+        
+        {/* Chat Content */}
+        <div className="ai-content" ref={scrollRef} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {messages.map((msg, i) => (
+            <div key={i} className="ai-message animate-fade" style={{ 
+              borderLeft: msg.role === 'model' ? '3px solid var(--brand)' : '3px solid var(--text-2)',
+              background: msg.role === 'user' ? 'transparent' : 'var(--panel-2)',
+              marginLeft: msg.role === 'user' ? 20 : 0,
+              marginRight: msg.role === 'user' ? 0 : 20,
+            }}>
+              <div className="ai-badge" style={{ 
+                  background: msg.role === 'user' ? 'var(--text-2)' : undefined 
+              }}>
+                  {msg.role === 'user' ? 'You' : 'Analyst'}
+              </div>
+              <div style={{ whiteSpace: 'pre-line', fontSize: 14, lineHeight: 1.6 }}>
+                  {msg.content}
+              </div>
             </div>
-
-            {loading ? (
-            <div className="ai-message">
-                <span className="typing-dot"></span>
-                <span className="typing-dot" style={{ animationDelay: '0.2s' }}></span>
-                <span className="typing-dot" style={{ animationDelay: '0.4s' }}></span>
-                <span style={{ marginLeft: 10, color: 'var(--muted)', fontSize: 13 }}>Deciphering threat signature...</span>
+          ))}
+  
+          {loading && (
+            <div className="ai-message" style={{ borderLeft: '3px solid var(--brand)' }}>
+              <span className="typing-dot"></span>
+              <span className="typing-dot" style={{ animationDelay: '0.2s' }}></span>
+              <span className="typing-dot" style={{ animationDelay: '0.4s' }}></span>
             </div>
-            ) : (
-            <div className="ai-message animate-fade" style={{ borderLeft: '3px solid var(--brand)' }}>
-                <div className="ai-badge">Analysis Complete</div>
-                <div style={{ whiteSpace: 'pre-line', fontSize: 14, lineHeight: 1.6 }}>{response}</div>
-            </div>
-            )}
-            </>
-        )}
+          )}
+        </div>
+        
+        {/* Input Area */}
+        <div style={{ padding: 16, borderTop: '1px solid var(--border)', background: 'var(--panel-2)' }}>
+          <form onSubmit={(e) => { e.preventDefault(); handleSend(input); }}>
+              <input 
+                  className="input" 
+                  placeholder="Ask a follow-up question..." 
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  disabled={loading || !selectedData}
+              />
+          </form>
+        </div>
       </div>
-      
-      <div style={{ padding: 16, borderTop: '1px solid var(--border)', background: 'var(--panel-2)' }}>
-        <input className="input" disabled placeholder="Ask a follow-up question..." style={{opacity:0.6}} />
-      </div>
-    </div>
-  );
-}
+    );
+  }
 
 // --- Data Hooks ---
 function useThreats() {
